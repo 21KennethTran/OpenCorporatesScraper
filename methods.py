@@ -60,11 +60,20 @@ def extractthem(url, browser):
   others = []
   if soup.find('small'):
     url2 = 'https://opencorporates.com' + soup.find('small').find('a')['href']
-    resp = browser.open(url2)
-    soup2 = get_soup(resp.content)
-    for off in soup2.find('ul', id='officers').find_all('li'):
-        other = off.find('a').text + off.contents[1].strip().rstrip(',') +  ', ' + off.find('span', class_='start_date').text.strip()
-        others.append(other)
+
+    while url2 is not None:
+        resp = browser.open(url2)
+        soup2 = get_soup(resp.content)
+        for off in soup2.find('ul', id='officers').find_all('li'):
+            name = off.find('a').text if off.find('a') else ''
+            title = off.contents[1].strip().rstrip(',') if off.contents[1] else ''
+            date = off.find('span', class_='start_date').text.strip() if off.find('span', class_='start_date') else ''
+            other = name + title +  ', ' + date
+            others.append(other)
+        if soup2.find_all('a', rel='next nofollow') is None:
+          break
+        url2 = 'https://opencorporates.com' + soup2.find_all('a', rel='next nofollow')[-1]['href']
+        print(url2)
   else:
     for off in soup.find('ul', class_='officers').find_all('li'):
         other = off.find('a').text + off.contents[1].strip().rstrip(',') +  ', ' + off.find('span', class_='start_date').text.strip()
@@ -216,5 +225,5 @@ def getOfficerInfo(officer="Jack McKay"):
   print(dataframe)
   dataframe.to_csv('officers_data.csv', index=False)
   
-getCompanyInfo()
+# getCompanyInfo()
 getOfficerInfo('Jack A Mckay')
