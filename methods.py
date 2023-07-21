@@ -8,12 +8,16 @@ from pyppeteer import launch
 import asyncio
 import re
 import js2py
+import creds
+import mechanicalsoup
 
 header = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.47',
           }
 
 def get_soup(content):
   return BeautifulSoup(content, 'html.parser')
+
+
 
 def extractcomp(url, session):
   response = requests.get(url, headers=header, cookies=session)
@@ -45,15 +49,38 @@ def extractcomp(url, session):
   }
   return data
 
-def extractthem(url, session):
-  response = requests.get(url, headers=header, cookies=session)
+
+
+def extractother(url, session):
+  r = requests.get(url, headers=header, cookies=session)
+  soup = get_soup(r.content)
+
+  name = soup.find('title').text.split(' :')[0]
+  title = soup.find('dd', class_='position').text if soup.find('dd', class_='position') else ''
+  date = soup.find('dd', class_='start_date').text if soup.find('dd', class_='start_date') else ''
+
+  info = name + ', ' + title + ', ' + date
+  return info
+
+
+
+def extractthem(url, browser):
+  response = browser.open(url)
   soup = get_soup(response.content)
 
   #TODO: need to find name title and date, not name and link
   others = []
-  for off in soup.find_all('a', class_=['officer', 'officer inactive']):
-    other = off.text + ', https://opencorporates.com' + off['href']
-    others.append(other)
+  if soup.find('small'):
+    url2 = 'https://opencorporates.com' + soup.find('small')['href']
+    resp = browser.open(url2)
+    soup2 = get_soup(resp.content)
+    for off in soup2.find('ul', id='officers').find_all('li'):
+        other = off.find('a').text + off.contents[2].strip().rstrip(',') + off.find('span', class_='start_date').text.strip()
+        others.append(other)
+  else:
+    for off in soup.find('ul', class_='officers').find_all('li'):
+        other = off.find('a').text + off.contents[2].strip().rstrip(',') + off.find('span', class_='start_date').text.strip()
+        others.append(other)
     
   # removed 'person's name' bc redundant
   data = {
@@ -65,6 +92,8 @@ def extractthem(url, session):
     'Other officers in company (name, title, date)': others,
   }
   return data
+
+
 
 def getCompanyInfo(company="Crixus Capital", type="companies"):
   company = company.replace(" ","+")
@@ -99,6 +128,8 @@ def getCompanyInfo(company="Crixus Capital", type="companies"):
     dataframe.to_csv('companies_data.csv', index=False)
 
 
+
+
 # async def company(company="Crixus Capital", type="companies"):
 #   browser = await launch()
 #   page = await browser.newPage()
@@ -108,37 +139,93 @@ def getCompanyInfo(company="Crixus Capital", type="companies"):
 #   await browser.close()
 #   element = await page.querySelector('h1')
 
-# getCompanyInfo()
-
-#TODO: find a way to sign in to view address
-def getOfficerInfo(officer="Jack McKay"):
-  officer = officer.replace(" ","+")
-  url = f"https://opencorporates.com/officers?q={company}&jurisdiction_code=&type=officers"
+def login():
+  login = 'https://opencorporates.com/users/sign_in'
   
-  with requests.get(url, headers=header) as r:
+
+  with requests.Session() as session:
+    r = session.get(login, headers=header)
+    # print(r.text)
+
     # find function that generates cookie with regex (newline inclusive)
     match = re.search('(function le.*\");', r.text, re.DOTALL)
 
     # run the new js function to return cookie id
     cookie = js2py.eval_js(match.group(0).replace('{ document.cookie=', 'return ') +"}; go()")
-    cookies = {'KEY': cookie.split('=', 1)[1]}
+    cookies = cookie.split('=', 1)[1]
 
-    new_r = requests.get(r.url, headers=header, cookies=cookies)
-    soup = get_soup(new_r.content)
-    
-    officer = soup.find_all('a', class_=['officer', 'officer inactive'])[0]['href']
-    data = extractthem('https://opencorporates.com' + officer, cookies)
-    dlength = max(len(values) for values in data.values())
-    for key, values in data.items():
-      # remove \n from text we want
-      newval = []
-      for value in values:
-        val = re.sub(r'\n', '', value)
-        newval.append(val)
-      data[key] = newval + ['']*(dlength - len(values))
+    session.cookies.set('KEY', cookies)
 
-    # transposed dataframe more intuitive for reading single company info?
-    # maybe json format is better
-    dataframe = pd.DataFrame(data)
-    print(dataframe)
-    dataframe.to_csv('officers_data.csv', index=False)
+    new_r = session.get(r.url, headers=header)
+    # print(new_r.text)
+
+    # I am not sure how to get authenticity_token...
+    form = {
+    'utf8': '✓',
+    'authenticity_token': 'vmmlsh1wYnByoD/Zp8CSsEN7VSi7iJDSkmqw4VHIzsI=',
+    'user[email]': creds.un,
+    'user[password]': creds.pw,
+    'redirect_to': '',
+    'submit': '',
+  }
+    login_r = session.post(new_r.url, data=form)
+    print(login_r.text)
+
+# stateful login is necessary as login POST payload requires authenticity_token which is generated in the backend
+def login_stateful(browser):
+  login_url = 'https://opencorporates.com/users/sign_in'
+
+#   browser = mechanicalsoup.StatefulBrowser()
+#   browser.open(login_url)
+#   print(browser.get_current_page().prettify())
+
+  jspage = browser.open(login_url).content.decode()
+  # find function that generates cookie with regex (newline inclusive)
+  match = re.search('(function le.*\");', jspage, re.DOTALL)
+
+  # run the new js function to return cookie id
+  cookie = js2py.eval_js(match.group(0).replace('{ document.cookie=', 'return ') +"}; go()")
+  cookies = cookie.split('=', 1)[1]
+  
+
+  browser.session.cookies.set('KEY', cookies)
+  browser.open(login_url)
+
+  form = browser.select_form('form[id="new_user"]')
+
+  browser['user[email]'] = creds.un
+  browser['user[password]'] = creds.pw
+  browser.submit_selected()
+  
+
+
+#TODO: find a way to sign in to view address
+def getOfficerInfo(officer="Jack McKay"):
+  browser = mechanicalsoup.StatefulBrowser()
+  login_stateful(browser)
+
+  officer = officer.replace(" ","+")
+  url = f"https://opencorporates.com/officers?q={officer}&jurisdiction_code=&type=officers"
+
+  response = browser.open(url)
+  soup = get_soup(response.content)
+
+  officer = soup.find_all('a', class_=['officer', 'officer inactive'])[0]['href']
+  data = extractthem('https://opencorporates.com' + officer, browser)
+  dlength = max(len(values) for values in data.values())
+  for key, values in data.items():
+    # remove \n from text we want
+    newval = []
+    for value in values:
+      val = re.sub(r'\n', '', value)
+      newval.append(val)
+    data[key] = newval + ['']*(dlength - len(values))
+
+  # transposed dataframe more intuitive for reading single company info?
+  # maybe json format is better
+  dataframe = pd.DataFrame(data)
+  print(dataframe)
+  dataframe.to_csv('officers_data.csv', index=False)
+  
+
+login_stateful()
