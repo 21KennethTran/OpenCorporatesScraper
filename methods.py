@@ -71,21 +71,22 @@ def extractthem(url, browser):
   #TODO: need to find name title and date, not name and link
   others = []
   if soup.find('small'):
-    url2 = 'https://opencorporates.com' + soup.find('small')['href']
+    url2 = 'https://opencorporates.com' + soup.find('small').find('a')['href']
     resp = browser.open(url2)
     soup2 = get_soup(resp.content)
     for off in soup2.find('ul', id='officers').find_all('li'):
-        other = off.find('a').text + off.contents[2].strip().rstrip(',') + off.find('span', class_='start_date').text.strip()
+        other = off.find('a').text + off.contents[1].strip().rstrip(',') +  ', ' + off.find('span', class_='start_date').text.strip()
         others.append(other)
   else:
     for off in soup.find('ul', class_='officers').find_all('li'):
-        other = off.find('a').text + off.contents[2].strip().rstrip(',') + off.find('span', class_='start_date').text.strip()
+        other = off.find('a').text + off.contents[1].strip().rstrip(',') +  ', ' + off.find('span', class_='start_date').text.strip()
         others.append(other)
     
+  response = browser.open(url)
   # removed 'person's name' bc redundant
   data = {
-    'Name': [soup.find('title').text.split(' :')[0]],
-    'Company name and link': [soup.find('dd', class_='company').text + ', https://opencorporates.com' + soup.find('dd', class_='company').find('a')['href']] if soup.find('dd', class_='company_number') and soup.find('dd', class_='company').find('a') else [''],
+    'Name': [soup.find('dd', class_='name').text] if soup.find('dd', class_='name') else [''],
+    'Company name and link': [soup.find('dd', class_='company').find('a').text + ', https://opencorporates.com' + soup.find('dd', class_='company').find('a')['href']] if soup.find('dd', class_='company') and soup.find('dd', class_='company').find('a') else [''],
     'Address': [soup.find('dd', class_='address').text] if soup.find('dd', class_='address') else [''],
     'Position': [soup.find('dd', class_='position').text] if soup.find('dd', class_='position') else [''],
     'Start date': [soup.find('dd', class_='start_date').text] if soup.find('dd', class_='start_date') else [''],
@@ -218,6 +219,7 @@ def getOfficerInfo(officer="Jack McKay"):
     newval = []
     for value in values:
       val = re.sub(r'\n', '', value)
+    #   val = re.sub(r'\"', '', val)
       newval.append(val)
     data[key] = newval + ['']*(dlength - len(values))
 
@@ -228,4 +230,4 @@ def getOfficerInfo(officer="Jack McKay"):
   dataframe.to_csv('officers_data.csv', index=False)
   
 
-login_stateful()
+getOfficerInfo('Jack A Mckay')
