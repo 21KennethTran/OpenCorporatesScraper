@@ -1,4 +1,4 @@
-# NOT MINE
+# NOT MINE; inspiration snippet taken from stack overflow
 import httpx
 import trio
 from selectolax.lexbor import LexborHTMLParser

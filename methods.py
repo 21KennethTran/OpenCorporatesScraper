@@ -14,6 +14,7 @@ import mechanicalsoup
 header = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.47',
           }
 
+
 def get_soup(content):
   return BeautifulSoup(content, 'html.parser')
 
@@ -48,19 +49,6 @@ def extractcomp(url, session):
     'Latest Events (date and description)': latestevents,
   }
   return data
-
-
-
-def extractother(url, session):
-  r = requests.get(url, headers=header, cookies=session)
-  soup = get_soup(r.content)
-
-  name = soup.find('title').text.split(' :')[0]
-  title = soup.find('dd', class_='position').text if soup.find('dd', class_='position') else ''
-  date = soup.find('dd', class_='start_date').text if soup.find('dd', class_='start_date') else ''
-
-  info = name + ', ' + title + ', ' + date
-  return info
 
 
 
@@ -130,20 +118,22 @@ def getCompanyInfo(company="Crixus Capital", type="companies"):
 
 
 
+# attempt at asynchronous functions (wrong)
+async def company(company="Crixus Capital", type="companies"):
+  browser = await launch()
+  page = await browser.newPage()
+  await page.goto(f"https://opencorporates.com/{type}?q={company}&jurisdiction_code=&type={type}")
+  await page.waitForSelector('title', {'visible': True})
+  await page.screenshot({'path': 'ss2.png'})
+  await browser.close()
+  element = await page.querySelector('h1')
 
-# async def company(company="Crixus Capital", type="companies"):
-#   browser = await launch()
-#   page = await browser.newPage()
-#   await page.goto(f"https://opencorporates.com/{type}?q={company}&jurisdiction_code=&type={type}")
-#   await page.waitForSelector('title', {'visible': True})
-#   await page.screenshot({'path': 'ss2.png'})
-#   await browser.close()
-#   element = await page.querySelector('h1')
 
+
+# wronge implementation
 def login():
   login = 'https://opencorporates.com/users/sign_in'
   
-
   with requests.Session() as session:
     r = session.get(login, headers=header)
     # print(r.text)
@@ -172,13 +162,11 @@ def login():
     login_r = session.post(new_r.url, data=form)
     print(login_r.text)
 
+
+
 # stateful login is necessary as login POST payload requires authenticity_token which is generated in the backend
 def login_stateful(browser):
   login_url = 'https://opencorporates.com/users/sign_in'
-
-#   browser = mechanicalsoup.StatefulBrowser()
-#   browser.open(login_url)
-#   print(browser.get_current_page().prettify())
 
   jspage = browser.open(login_url).content.decode()
   # find function that generates cookie with regex (newline inclusive)
@@ -200,7 +188,6 @@ def login_stateful(browser):
   
 
 
-#TODO: find a way to sign in to view address
 def getOfficerInfo(officer="Jack McKay"):
   browser = mechanicalsoup.StatefulBrowser()
   login_stateful(browser)
@@ -229,5 +216,5 @@ def getOfficerInfo(officer="Jack McKay"):
   print(dataframe)
   dataframe.to_csv('officers_data.csv', index=False)
   
-
+getCompanyInfo()
 getOfficerInfo('Jack A Mckay')
