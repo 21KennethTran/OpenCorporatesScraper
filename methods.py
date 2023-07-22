@@ -56,7 +56,6 @@ def extractthem(url, browser):
   response = browser.open(url)
   soup = get_soup(response.content)
 
-  #TODO: need to find name title and date, not name and link
   others = []
   if soup.find('small'):
     url2 = 'https://opencorporates.com' + soup.find('small').find('a')['href']
@@ -70,10 +69,9 @@ def extractthem(url, browser):
             date = off.find('span', class_='start_date').text.strip() if off.find('span', class_='start_date') else ''
             other = name + title +  ', ' + date
             others.append(other)
-        if soup2.find_all('a', rel='next nofollow') is None:
+        if not soup2.find_all('a', rel='next nofollow'):
           break
         url2 = 'https://opencorporates.com' + soup2.find_all('a', rel='next nofollow')[-1]['href']
-        print(url2)
   else:
     for off in soup.find('ul', class_='officers').find_all('li'):
         other = off.find('a').text + off.contents[1].strip().rstrip(',') +  ', ' + off.find('span', class_='start_date').text.strip()
