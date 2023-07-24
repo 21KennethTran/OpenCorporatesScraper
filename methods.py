@@ -191,8 +191,7 @@ def login_stateful(browser):
 
   browser['user[email]'] = creds.un
   browser['user[password]'] = creds.pw
-  browser.submit_selected()
-  
+  browser.submit_selected()  
 
 
 def getOfficerInfo(officer="Jack McKay"):
@@ -213,7 +212,7 @@ def getOfficerInfo(officer="Jack McKay"):
     newval = []
     for value in values:
       val = re.sub(r'\n', '', value)
-    #   val = re.sub(r'\"', '', val)
+      val = re.sub('\"', '', val)
       newval.append(val)
     data[key] = newval + ['']*(dlength - len(values))
 
@@ -223,5 +222,5 @@ def getOfficerInfo(officer="Jack McKay"):
   print(dataframe)
   dataframe.to_csv('officers_data.csv', index=False)
   
-# getCompanyInfo()
-getOfficerInfo('Jack A Mckay')
+getCompanyInfo("SpaceX")
+getOfficerInfo("Elon Musk")
